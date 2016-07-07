@@ -104,7 +104,7 @@ namespace ThoughtWorks.CruiseControl.Core
         private IIntegrationResultManager integrationResultManager;
         private IIntegratable integratable;
         private QuietPeriod quietPeriod = new QuietPeriod(new DateTimeProvider());
-        private List<Message> messages = new List<Message>();
+        private Dictionary<Message.MessageKind, Message> messageKindWithEntity = new Dictionary<Message.MessageKind, Message>();
         private int maxSourceControlRetries = 5;
         private IProjectAuthorisation security = new InheritedProjectAuthorisation();
         private ParameterBase[] parameters = new ParameterBase[0];
@@ -684,15 +684,11 @@ namespace ThoughtWorks.CruiseControl.Core
         /// Clears the message array of the messages of the specified kind
         /// </summary>
         /// <param name="kind"></param>
-        private void ClearMessages(Message.MessageKind kind)
+        private void ClearMessage(Message.MessageKind kind)
         {
-            for (Int32 i = messages.Count - 1; i >= 0; i--)
+            if (messageKindWithEntity.ContainsKey(kind))
             {
-                Message m = (Message)messages[i];
-                if (m.Kind == kind)
-                {
-                    messages.RemoveAt(i);
-                }
+                messageKindWithEntity.Remove(kind);
             }
         }
 
@@ -972,7 +968,7 @@ namespace ThoughtWorks.CruiseControl.Core
             }
             if (result.Succeeded)
             {
-                messages.Clear();
+                messageKindWithEntity.Clear();
             }
             else
             {
@@ -980,7 +976,7 @@ namespace ThoughtWorks.CruiseControl.Core
                 AddFailedTaskToMessages();
             }
 
-            this.ClearMessages(Message.MessageKind.BuildStatus);
+            this.ClearMessage(Message.MessageKind.BuildStatus);
             if (merged && !mergeFailed)
             {
                 // Clean up any temporary results
@@ -1346,7 +1342,7 @@ namespace ThoughtWorks.CruiseControl.Core
                 this.QueuePriority,
                 this.Parameters);
             status.Description = this.Description;
-            status.Messages = this.messages.ToArray();
+            status.Messages = this.messageKindWithEntity.Values.ToArray();
             status.ShowForceBuildButton = this.ShowForceBuildButton;
             status.ShowStartStopButton = this.ShowStartStopButton;
             return status;
@@ -1374,17 +1370,14 @@ namespace ThoughtWorks.CruiseControl.Core
         /// <remarks></remarks>
         public void AddMessage(Message message)
         {
-            if (message.Kind == Message.MessageKind.Fixer)
+            if (messageKindWithEntity.ContainsKey(message.Kind))
             {
-                // only show the last fixer
-                var existingFixerMessage = (from m in messages where m.Kind == Message.MessageKind.Fixer select m).SingleOrDefault();
-                if (existingFixerMessage != null)
-                {
-                    messages.Remove(existingFixerMessage);
-                }
+                messageKindWithEntity[message.Kind] = message;
             }
-
-            messages.Add(message);
+            else
+            {
+                messageKindWithEntity.Add(message.Kind, message);
+            }
         }
 
         /// <summary>
@@ -1880,9 +1873,9 @@ namespace ThoughtWorks.CruiseControl.Core
         /// <remarks></remarks>
         public void ClearNotNeededMessages()
         {
-            ClearMessages(Message.MessageKind.Breakers);
-            ClearMessages(Message.MessageKind.FailingTasks);
-            ClearMessages(Message.MessageKind.BuildAbortedBy);
+            ClearMessage(Message.MessageKind.Breakers);
+            ClearMessage(Message.MessageKind.FailingTasks);
+            ClearMessage(Message.MessageKind.BuildAbortedBy);
 
         }
 
@@ -1892,7 +1885,7 @@ namespace ThoughtWorks.CruiseControl.Core
         /// <param name="request">The request.</param>
         public void InitialiseForBuild(IntegrationRequest request)
         {
-            this.ClearMessages(Message.MessageKind.BuildStatus);
+            this.ClearMessage(Message.MessageKind.BuildStatus);
             this.AddMessage(new Message(request.ToString(), Message.MessageKind.BuildStatus));
         }
     }
